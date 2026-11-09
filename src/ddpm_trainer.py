@@ -20,7 +20,7 @@ warnings.filterwarnings('ignore')
 class BasicTrainer:
     def __init__(self, train_data, valid_data, model, console, logger, opt):
         # dataset
-        self.train_data = train_data,
+        self.train_data = train_data
         self.valid_data = valid_data
 
         collate = CustomCollate(opt)
@@ -78,14 +78,20 @@ class VBDDPMTrainer(BasicTrainer):
         # load conditon generator
         if opt.c_gen:
             self.c_gen = Base()
-            checkpoint = torch.load("./asset/selected_model/c_gen.pth")
+            checkpoint = torch.load(
+                "/content/drive/MyDrive/DR_DiffuSE/checkpoints/c_gen.pth",
+                map_location=opt.device
+            )
             self.c_gen.load_state_dict(checkpoint['model_state_dict'])
             self.c_gen.to(opt.device)
             self.c_gen.eval()  # newly add 11.20
 
         if opt.refine:
             self.refiner = Base()
-            checkpoint = torch.load("./asset/selected_model/refiner.pth")
+            checkpoint = torch.load(
+                "/content/drive/MyDrive/DR_DiffuSE/checkpoints/refiner.pth",
+                map_location=opt.device
+            )
             self.refiner.load_state_dict(checkpoint['model_state_dict'])
             self.refiner.to(opt.device)
             self.refiner.eval()
@@ -349,10 +355,9 @@ class VBDDPMTrainer(BasicTrainer):
 
                         # add condition guidance
                         if self.opt.c_guidance:
-                            noise_scale = torch.Tensor([alpha_cum[n]]).unsqueeze(1).unsqueeze(2).unsqueeze(
-                                3).cuda()  # alpha_bar_t [N, 1, 1, 1]
+                            noise_scale = torch.Tensor([alpha_cum[n]]).unsqueeze(1).unsqueeze(2).unsqueeze(3).to(self.opt.device)
                             noise_scale_sqrt = noise_scale ** 0.5  # sqrt(alpha_bar_t) [N, 1, 1, 1]
-                            noise = torch.randn_like(condition).cuda()  # epsilon           [N, 2, T, F]
+                            noise = torch.randn_like(condition).to(self.opt.device)
                             noisy_condition = noise_scale_sqrt * condition + (1.0 - noise_scale) ** 0.5 * noise  # c_t
                             spec = 0.5 * spec + 0.5 * noisy_condition
                 if self.opt.refine:
