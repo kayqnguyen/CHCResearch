@@ -8,6 +8,9 @@ from model import *
 from utils import *
 from ddpm_trainer import *
 
+DATA_ROOT = "/content/drive/MyDrive/DR_DiffuSE/voicebank"
+CHECKPOINT_ROOT = "/content/drive/MyDrive/DR_DiffuSE/checkpoints"
+
 
 def main(opt):
     if opt.seed > 0:
@@ -15,8 +18,7 @@ def main(opt):
         torch.manual_seed(opt.seed)
 
     '''logger'''
-    if not os.path.exists(f'./asset/log/{opt.model}.log'):
-        os.mkdir(f'./asset/log/{opt.model}.log')
+    os.makedirs('./asset/log', exist_ok=True)
     logger = get_logger(f'./asset/log/{opt.model}.log')
     logger.info(opt)
 
@@ -24,28 +26,18 @@ def main(opt):
 
     '''load data'''
     tr_data = VBDataset(
-        './data/voicebank/noisy_trainset_wav',
-        './data/voicebank/clean_trainset_wav',
+        os.path.join(DATA_ROOT, 'noisy_trainset_wav'),
+        os.path.join(DATA_ROOT, 'clean_trainset_wav'),
         'train',
-        opt)
-
-    # cv_data = VBDataset(
-    #     './data/voicebank/noisy_testset_wav',
-    #     './data/voicebank/clean_testset_wav',
-    #     'valid',
-    #     opt)
-
-    # cv_data = VBDataset(
-    #     './data/chime4/noisy',
-    #     './data/chime4/clean',
-    #     'valid',
-    #     opt)
+        opt
+    )
 
     cv_data = VBDataset(
-        '/home/icdm/twx/speech/DR-DiffuSE/data/voicebank/noisy_testset_wav',
-        '/home/icdm/twx/speech/DR-DiffuSE/data/voicebank/clean_testset_wav',
+        os.path.join(DATA_ROOT, 'noisy_testset_wav'),
+        os.path.join(DATA_ROOT, 'clean_testset_wav'),
         'valid',
-        opt)
+        opt
+    )
 
 
     console.print(f'evaluation: total {cv_data.__len__()} eval data.')
@@ -59,10 +51,14 @@ def main(opt):
     )
 
     model = eval(opt.model)(opt.params)
-    # checkpoint = torch.load(f"./asset/model/{model.__class__.__name__}_best.pth")
-    checkpoint = torch.load(f"./asset/selected_model/ddpm.pth")
+
+    checkpoint = torch.load(
+        os.path.join(CHECKPOINT_ROOT, 'ddpm.pth'),
+        map_location=opt.device
+    )
+
     model.load_state_dict(checkpoint['model_state_dict'])
-    model.to(args.device)
+    model.to(opt.device)
     model.eval()
     '''load trainer'''
     trainer = VBDDPMTrainer(tr_data, cv_data, model, console, logger,  opt)
