@@ -42,14 +42,21 @@ class CustomCollate(object):
     # }
 
     def collate_fn(self, batch):
-        noisy_list, clean_list, frame_num_list, wav_len_list = [], [], [], []
+        noisy_list, clean_list = [], []
+        frame_num_list, wav_len_list = [], []
+        filename_list, scale_list = [], []
         to_tensor = ToTensor()
         for sample in batch:
             c = np.sqrt(len(sample['noisy_speech']) / np.sum(sample['noisy_speech'] ** 2.0))
+
             noisy_list.append(to_tensor(sample['noisy_speech'] * c))
             clean_list.append(to_tensor(sample['clean_speech'] * c))
+
             frame_num_list.append(sample['frame_num'])
             wav_len_list.append(sample['wav_len'])
+
+            filename_list.append(sample['filename'])
+            scale_list.append(c)
         noisy_list = nn.utils.rnn.pad_sequence(noisy_list, batch_first=True)
         clean_list = nn.utils.rnn.pad_sequence(clean_list, batch_first=True)  # [b, chunk_length]
         noisy_list = torch.stft(
@@ -73,7 +80,9 @@ class CustomCollate(object):
             'feats': noisy_list,
             'labels': clean_list,
             'frame_num_list': frame_num_list,
-            'wav_len_list': wav_len_list
+            'wav_len_list': wav_len_list,
+            'filename_list': filename_list,
+            'scale_list': scale_list
         }
 
 
@@ -109,5 +118,6 @@ class VBDataset(Dataset):
             'noisy_speech': noisy,
             'clean_speech': clean,
             'frame_num': frame_num,
-            'wav_len': wav_len
+            'wav_len': wav_len,
+            'filename': self.raw_paths[index]
         }

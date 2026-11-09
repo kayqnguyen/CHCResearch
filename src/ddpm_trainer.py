@@ -1,5 +1,8 @@
 from abc import abstractmethod
 
+import os
+import soundfile as sf
+
 import torch
 import wandb
 from torch.utils.data import DataLoader
@@ -363,6 +366,55 @@ class VBDDPMTrainer(BasicTrainer):
                 if self.opt.refine:
                     spec = 0.5 * spec + 0.5 * batch_feat
                     spec = self.refiner(spec)['est_comp']
+
+                # Save enhanced audio
+                output_dir = "/content/drive/MyDrive/DR_DiffuSE/enhanced_audio"
+                os.makedirs(output_dir, exist_ok=True)
+
+                with torch.no_grad():
+                    esti_mag = torch.norm(spec, dim=1)
+                    esti_phase = torch.atan2(spec[:, -1, :, :], spec[:, 0, :, :])
+
+                    if self.opt.feat_type == 'sqrt':
+                        esti_mag = esti_mag ** 2
+                    elif self.opt.feat_type == 'cubic':
+                        esti_mag = esti_mag ** (10 / 3)
+                    elif self.opt.feat_type == 'log_1x':
+                        esti_mag = torch.exp(esti_mag) - 1
+
+                    esti_com = torch.stack(
+                        (esti_mag * torch.cos(esti_phase),
+                        esti_mag * torch.sin(esti_phase)),
+                        dim=1
+                    )
+
+                    for i in range(spec.shape[0]):
+                        tf_esti = esti_com[i].unsqueeze(0).permute(0, 3, 2, 1).cpu()
+
+                        tf_esti_com = torch.complex(
+                            tf_esti[:, :, :, 0],
+                            tf_esti[:, :, :, 1]
+                        )
+
+                        enhanced = torch.istft(
+                            tf_esti_com,
+                            n_fft=320,
+                            hop_length=160,
+                            win_length=320,
+                            window=torch.hann_window(320)
+                        ).squeeze().numpy()
+
+                        # Trim to original waveform length
+                        enhanced = enhanced[:batch['wav_len_list'][i]]
+
+                        # Undo the normalization applied in CustomCollate
+                        enhanced = enhanced / batch['scale_list'][i]
+
+                        # Preserve the original filename
+                        filename = batch['filename_list'][i]
+                        output_path = os.path.join(output_dir, filename)
+
+                        sf.write(output_path, enhanced, 16000)
 
                 '''run code in below can draw the difference between initial gaussian, condition (noisy), generated, and ground truth'''
 
